@@ -60,11 +60,14 @@
       :highlightClass='highlightClass'
       :disabledValues="disabledValues"
       :vbtUniqueId="id"
+      :tagsSearchField='tagsSearchField'
+      :searchTermField='searchTermField'
+      :searchStringToken='searchStringToken'
       role="listbox"
     >
       <!-- pass down all scoped slots -->
-      <template v-for="(slot, slotName) in $scopedSlots" :slot="slotName" slot-scope="{ data, htmlText }">
-        <slot :name="slotName" v-bind="{ data, htmlText }"></slot>
+      <template v-for="(slot, slotName) in $scopedSlots" :slot="slotName" slot-scope="{ data, htmlText, highlightedTags }">
+        <slot :name="slotName" v-bind="{ data, htmlText, highlightedTags }"></slot>
       </template>
       <!-- below is the right solution, however if the user does not provide a scoped slot, vue will still set $scopedSlots.suggestion to a blank scope
       <template v-if="$scopedSlots.suggestion" slot="suggestion" slot-scope="{ data, htmlText }">
@@ -168,7 +171,18 @@ export default {
     placeholder: String,
     prepend: String,
     append: String,
-    highlightClass: String
+    highlightClass: String,
+
+    tagsSearchField: {
+      type: String
+    },
+    searchTermField: {
+      type: String
+    },
+    searchStringToken: {
+      type: String,
+      default: null
+    }
   },
 
   computed: {

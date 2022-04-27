@@ -13,7 +13,7 @@
   >
     <div class="sr-only">{{screenReaderText}}</div>
     <div aria-hidden="true">
-      <slot name="suggestion" v-bind="{ data: data, htmlText: htmlText }">
+      <slot name="suggestion" v-bind="{ data: data, htmlText: htmlText, highlightedTags: highlightedTags }">
         <span v-html="htmlText"></span>
       </slot>
     </div>
@@ -48,7 +48,8 @@ export default {
     },
     textVariant: {
       type: String
-    }
+    },
+    highlightedTags: {}
   },
   data: function() {
     return {

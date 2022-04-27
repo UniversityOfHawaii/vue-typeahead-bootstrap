@@ -6,6 +6,7 @@
       :id="(isListItemActive(id)) ? `selected-option-${vbtUniqueId}` : false"
       :data="item.data"
       :html-text="highlight(item.text)"
+      :highlighted-tags="highlightedMatchedTags(item.data)"
       role="option"
       :aria-selected="(isListItemActive(id)) ? 'true' : 'false'"
       :screen-reader-text="(item.screenReaderText) ? item.screenReaderText : item.text"
@@ -16,8 +17,8 @@
       @click.native="handleHit(item, $event)"
       v-on="$listeners"
     >
-      <template v-if="$scopedSlots.suggestion" slot="suggestion" slot-scope="{ data, htmlText }">
-        <slot name="suggestion" v-bind="{ data, htmlText }" />
+      <template v-if="$scopedSlots.suggestion" slot="suggestion" slot-scope="{ data, htmlText, highlightedTags }">
+        <slot name="suggestion" v-bind="{ data, htmlText, highlightedTags }" />
       </template>
     </vue-typeahead-bootstrap-list-item>
   </div>
@@ -31,6 +32,9 @@ import isEmpty from 'lodash/isEmpty'
 import reject from 'lodash/reject'
 import reverse from 'lodash/reverse'
 import findIndex from 'lodash/findIndex'
+import map from 'lodash/map'
+import reduce from 'lodash/reduce'
+import some from 'lodash/some'
 
 const BEFORE_LIST_INDEX = -1
 
@@ -100,6 +104,15 @@ export default {
     highlightClass: {
       type: String,
       default: 'vbt-matched-text'
+    },
+    tagsSearchField: {
+      type: String
+    },
+    searchTermField: {
+      type: String
+    },
+    searchStringToken: {
+      type: String
     }
   },
 
@@ -126,8 +139,42 @@ export default {
       }
     },
 
+    highlightedMatchedTags() {
+      return data => {
+        let allSearchTerms = this.showAllResults ? [''] : this.escapedQuery.split(this.searchStringToken);
+
+        if (!isEmpty(allSearchTerms)) {
+          allSearchTerms = allSearchTerms.filter(term => term.length >= this.minMatchingChars);
+        }
+        const regExps = map(allSearchTerms, (term) => new RegExp(term, 'gi'));
+
+        if (this.tagsSearchField) {
+          const tags = data[this.tagsSearchField] || [];
+          const matched = tags.filter(tag => some(regExps, re => tag.match(re) !== null));
+          return map(matched, (tag) => {
+            let tagText = tag;
+            for (const re of regExps) {
+              if (tagText.match(re)) {
+                tagText = tagText.replace(re, `<span class='${this.highlightClass}'>$&</span>`)
+              }
+            }
+            return tagText;
+          });
+        }
+        else {
+          return [];
+        }
+      }
+
+    },
+
     escapedQuery() {
-      return escapeRegExp(sanitize(this.query))
+      // replace multiple spaces with a single space
+      const escaped = escapeRegExp(sanitize(this.query));
+      if (escaped) {
+        return escaped.replace(/\s+/g, ' ').trim();
+      }
+      return escaped;
     },
 
     actionableItems() {
@@ -141,25 +188,115 @@ export default {
         return []
       }
 
-      const re = new RegExp(this.showAllResults ? '' : this.escapedQuery, 'gi')
+      let allSearchTerms = this.showAllResults ? [''] : this.escapedQuery.split(this.searchStringToken);
 
-      // Filter, sort, and concat
-      return this.data
-        .filter(i => i.text.match(re) !== null)
-        .sort((a, b) => {
-          if (this.disableSort) return 0
+      // terms should have the min matching chars
+      allSearchTerms = allSearchTerms.filter(term => term.length >= this.minMatchingChars);
 
-          const aIndex = a.text.indexOf(a.text.match(re)[0])
-          const bIndex = b.text.indexOf(b.text.match(re)[0])
+      console.log(allSearchTerms);
+      if (isEmpty(allSearchTerms)) {
+        return [];
+      }
 
-          if (aIndex < bIndex) { return -1 }
-          if (aIndex > bIndex) { return 1 }
-          return 0
+      const regExps = map(allSearchTerms, (term) => new RegExp(term, 'gi'));
+
+      const wholeSearchTerm = this.showAllResults ? '' : this.escapedQuery;
+      const wholeRegExp = new RegExp(wholeSearchTerm, 'gi');
+
+      // apply Regexps to all terms so we can filter and sort
+      const matchedData = map(this.data, (item) => {
+        const searchText = this.searchTermField ? item.data[this.searchTermField] || '' : i.text;
+        item.matchLength = 0;
+        item.matchType = 0;
+
+        // first search by the whole term, if no match do each term
+        const wholeTermMatch = searchText.match(wholeRegExp);
+        if (wholeTermMatch && !isEmpty(wholeTermMatch)) {
+          item.matchLength = wholeTermMatch[0].length;
+          item.matchType = 1;
+          item.data.htmlLabel = this.highlightText(item.data.description);
+        }
+        else {
+          // match on each term instead
+          const matchedTerms = map(regExps, re => searchText.match(re)).filter(item => item !== null);
+          if (!isEmpty(matchedTerms)) {
+            item.matchLength += reduce(matchedTerms, (sum, accum) => {
+              return sum + accum[0].length;
+            }, 0);
+            item.matchType = 2;
+
+            item.data.htmlLabel = item.text;
+            for (const regExp of regExps) {
+              if (searchText.match(regExp)) {
+                item.data.htmlLabel = item.data.htmlLabel.replace(regExp, `<span class='${this.highlightClass}'>$&</span>`)
+              }
+
+            }
+          }
+        }
+
+        // try to match on tags; if any set the match type
+        if (this.tagsSearchField) {
+          const tags = item.data[this.tagsSearchField] || [];
+          const matchedTags = tags.filter(tag => some(regExps, re => tag.match(re) !== null));
+          if (!isEmpty(matchedTags)) {
+            item.matchLength += matchedTags.length;
+            item.matchType = 3;
+          }
+        }
+
+        // highlight the description if available
+        if (item.data.description) {
+          item.data.htmlDesc = this.highlightText(item.data.description, true);
+        }
+
+        return item;
+      });
+
+      return matchedData
+        .filter((i) => {
+          return i.matchType > 0;
+        }).sort((a, b) => {
+          if (this.disableSort) {
+            return 0;
+          }
+
+          // sort by match length desc
+          let diff = b.matchLength - a.matchLength;
+
+          // secondary by type asc
+          if (diff === 0) {
+            diff = a.matchType - b.matchType;
+          }
+
+          // tertiary by alpha asc
+          if (diff === 0) {
+            diff = a.data.id.localeCompare(b.data.id);
+          }
+
+          return diff;
         }).slice(0, this.maxMatches)
     }
   },
 
   methods: {
+    highlightText(text, returnNonNullForNoMatch) {
+      if (!text) {
+        return null;
+      }
+      const cleanText = sanitize(text)
+      if (this.query.length === 0 && returnNonNullForNoMatch) {
+        return cleanText
+      }
+
+      const re = new RegExp(this.escapedQuery, 'gi')
+      if (returnNonNullForNoMatch && !cleanText.match(re)) {
+        return null;
+      }
+
+      return cleanText.replace(re, `<span class='${this.highlightClass}'>$&</span>`);
+    },
+
     handleParentInputKeyup(e) {
       switch (e.keyCode) {
         case 40: // down arrow
