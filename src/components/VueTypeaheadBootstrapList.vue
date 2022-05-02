@@ -193,15 +193,16 @@ export default {
       // terms should have the min matching chars
       allSearchTerms = allSearchTerms.filter(term => term.length >= this.minMatchingChars);
 
-      console.log(allSearchTerms);
       if (isEmpty(allSearchTerms)) {
         return [];
       }
 
-      const regExps = map(allSearchTerms, (term) => new RegExp(term, 'gi'));
-
+      // create a regexp for the whole term; this should take priority
       const wholeSearchTerm = this.showAllResults ? '' : this.escapedQuery;
       const wholeRegExp = new RegExp(wholeSearchTerm, 'gi');
+
+      // create a big OR Regexp with all the terms
+      const termsRegExp = new RegExp(allSearchTerms.join('|'), 'gi');
 
       // apply Regexps to all terms so we can filter and sort
       const matchedData = map(this.data, (item) => {
@@ -214,40 +215,38 @@ export default {
         if (wholeTermMatch && !isEmpty(wholeTermMatch)) {
           item.matchLength = wholeTermMatch[0].length;
           item.matchType = 1;
-          item.data.htmlLabel = this.highlightText(item.data.description);
+          item.data.htmlLabel = this.highlightText(item.text);
+
+          if (item.data.description) {
+            item.data.htmlDesc = this.highlightText(item.data.description, true);
+          }
         }
         else {
           // match on each term instead
-          const matchedTerms = map(regExps, re => searchText.match(re)).filter(item => item !== null);
+          const matchedTerms = searchText.match(termsRegExp);
           if (!isEmpty(matchedTerms)) {
             item.matchLength += reduce(matchedTerms, (sum, accum) => {
-              return sum + accum[0].length;
+              return sum + accum.length;
             }, 0);
             item.matchType = 2;
 
-            item.data.htmlLabel = item.text;
-            for (const regExp of regExps) {
-              if (searchText.match(regExp)) {
-                item.data.htmlLabel = item.data.htmlLabel.replace(regExp, `<span class='${this.highlightClass}'>$&</span>`)
-              }
+            item.data.htmlLabel = item.text.replace(termsRegExp, `<span class='${this.highlightClass}'>$&</span>`);
 
+            if (item.data.description) {
+              item.data.htmlDesc = item.data.description.replace(termsRegExp, `<span class='${this.highlightClass}'>$&</span>`);
             }
           }
         }
 
         // try to match on tags; if any set the match type
         if (this.tagsSearchField) {
+          const regExps = map(allSearchTerms, (term) => new RegExp(term, 'gi'));
           const tags = item.data[this.tagsSearchField] || [];
           const matchedTags = tags.filter(tag => some(regExps, re => tag.match(re) !== null));
           if (!isEmpty(matchedTags)) {
             item.matchLength += matchedTags.length;
             item.matchType = 3;
           }
-        }
-
-        // highlight the description if available
-        if (item.data.description) {
-          item.data.htmlDesc = this.highlightText(item.data.description, true);
         }
 
         return item;
@@ -290,7 +289,7 @@ export default {
       }
 
       const re = new RegExp(this.escapedQuery, 'gi')
-      if (returnNonNullForNoMatch && !cleanText.match(re)) {
+      if (!returnNonNullForNoMatch && !cleanText.match(re)) {
         return null;
       }
 
