@@ -238,17 +238,6 @@ export default {
           }
         }
 
-        // try to match on tags; if any set the match type
-        if (this.tagsSearchField) {
-          const regExps = map(allSearchTerms, (term) => new RegExp(term, 'gi'));
-          const tags = item.data[this.tagsSearchField] || [];
-          const matchedTags = tags.filter(tag => some(regExps, re => tag.match(re) !== null));
-          if (!isEmpty(matchedTags)) {
-            item.matchLength += matchedTags.length;
-            item.matchType = 3;
-          }
-        }
-
         return item;
       });
 
@@ -260,12 +249,12 @@ export default {
             return 0;
           }
 
-          // sort by match length desc
-          let diff = b.matchLength - a.matchLength;
+          // sort by match type asc
+          let diff = a.matchType - b.matchType;
 
-          // secondary by type asc
+          // secondary by length desc
           if (diff === 0) {
-            diff = a.matchType - b.matchType;
+            diff = b.matchLength - a.matchLength;
           }
 
           // tertiary by alpha asc
