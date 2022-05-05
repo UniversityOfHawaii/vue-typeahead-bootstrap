@@ -182,6 +182,17 @@ export default {
     searchStringToken: {
       type: String,
       default: null
+    },
+    windowWidth: {
+      default: window.innerWidth
+    },
+    shouldBeFullWidth: {
+      type: Boolean,
+      default: false
+    },
+    resultBoxPadding: {
+      type: Number,
+      default: 10
     }
   },
 
@@ -226,6 +237,15 @@ export default {
 
       // Set the width of the list on resize
       listStyle.width = rect.width + 'px'
+
+      // reposition and resize the search results for small sizes
+      if (this.shouldBeFullWidth) {
+        listStyle.width = `${this.windowWidth - this.resultBoxPadding}px`;
+        listStyle.marginLeft = `-${rect.left - (this.resultBoxPadding / 2)}px`;
+      }
+      else {
+        listStyle.marginLeft = '0px';
+      }
 
       // Set the margin when the prepend prop or slot is populated
       // (setting the "left" CSS property doesn't work)
