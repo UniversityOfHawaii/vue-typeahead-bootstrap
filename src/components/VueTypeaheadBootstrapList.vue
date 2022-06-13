@@ -193,7 +193,8 @@ export default {
       // terms should have the min matching chars
       allSearchTerms = allSearchTerms.filter(term => term.length >= this.minMatchingChars);
 
-      if (isEmpty(allSearchTerms)) {
+      // check again if empty search AND we don't want to show on focus
+      if (!this.showOnFocus && isEmpty(allSearchTerms)) {
         return [];
       }
 
@@ -206,7 +207,7 @@ export default {
 
       // apply Regexps to all terms so we can filter and sort
       const matchedData = map(this.data, (item) => {
-        const searchText = this.searchTermField ? item.data[this.searchTermField] || '' : i.text;
+        const searchText = this.searchTermField ? item.data[this.searchTermField] || '' : item.text;
         item.matchLength = 0;
         item.matchType = 0;
 
@@ -259,7 +260,9 @@ export default {
 
           // tertiary by alpha asc
           if (diff === 0) {
-            diff = a.data.id.localeCompare(b.data.id);
+            const aText = a.data.id || a.text;
+            const bText = b.data.id || b.text;
+            diff = aText.localeCompare(bText);
           }
 
           return diff;
