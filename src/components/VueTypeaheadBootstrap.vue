@@ -17,7 +17,7 @@
         :id="`typeahead-input-${id}`"
         type="text"
         role="searchbox"
-        :class="`form-control ${inputClass}`"
+        :class="inputClassComputed"
         :aria-labelledby="ariaLabelledBy"
         aria-multiline="false"
         aria-autocomplete="list"
@@ -42,7 +42,7 @@
     </div>
     <vue-typeahead-bootstrap-list
       :id="`result-list-${id}`"
-      class="vbt-autcomplete-list"
+      :class="typeAheadClass"
       ref="list"
       v-show="isFocused && data.length > 0"
       :query="inputValue"
@@ -97,6 +97,10 @@ export default {
       type: String,
       default: null,
       validator: size => ['lg', 'md', 'sm'].indexOf(size) > -1
+    },
+    isDark: {
+      type: Boolean,
+      default: false
     },
     value: {
       type: String
@@ -202,6 +206,12 @@ export default {
     },
     inputGroupClasses() {
       return this.size ? `input-group input-group-${this.size}` : 'input-group'
+    },
+    inputClassComputed: function () {
+      return `form-control ${this.inputClass} ${this.isDark ? "dark" : ""}`
+    },
+    typeAheadClass: function() {
+      return `vbt-autcomplete-list ${this.isDark ? "dark" : ""}`;
     },
 
     formattedData() {
